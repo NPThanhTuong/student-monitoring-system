@@ -1,0 +1,51 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+.env/
+envs/
+
+# Python Bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Operating System Specific
+.DS_Store
+Thumbs.db
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Temporary Files and Logs
+*.log
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Local Configuration
+.env
+*.ini # Or other local config files
+
+# Build and Distribution
+build/
+dist/
+*.egg-info/
+
+# Test Coverage
+htmlcov/
+.coverage
+coverage.xml
+
+# Data Files (Optional - if large and not essential)
+# data/large_dataset.csv
