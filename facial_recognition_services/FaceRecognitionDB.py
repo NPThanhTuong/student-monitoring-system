@@ -238,3 +238,20 @@ class FaceRecognitionDB:
         except Exception as e:
             print(f"Error deleting person from database: {e}")
             return False
+
+    def is_face_encoding_storage_empty(self):
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT COUNT(*) FROM face_encodings")
+
+            count = cursor.fetchone()[0]
+
+            cursor.close()
+            conn.close()
+
+            return count == 0
+        except Exception as e:
+            print(f"Error occurs when checking if having any face encodings in database.")
+            return True

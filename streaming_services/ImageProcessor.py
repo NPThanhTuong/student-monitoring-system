@@ -11,12 +11,11 @@ from facial_recognition_services.FaceRecognitionSystem import FaceRecognitionSys
 
 class ImageProcessor:
     """Process images from base64 data and perform face recognition"""
-
     def __init__(self, window_name="Face Recognition"):
         self.window_name = window_name
 
     @staticmethod
-    def process_row(row, known_names, known_encodings):
+    def process_row(face_system, row, known_names, known_encodings):
         """Process a single row of data containing a base64 encoded image"""
         try:
             # Decode base64 to image
@@ -25,33 +24,18 @@ class ImageProcessor:
             np_arr = np.frombuffer(img_data, dtype=np.uint8)
             frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-            face_system = FaceRecognitionSystem()
-
             if frame is not None:
                 face_system.recognize_from_spark_streaming(frame, known_names, known_encodings)
         except Exception as e:
             logging.error(f"Error processing frame: {e}")
 
     @staticmethod
-    def process_batch(batch_df, batch_id):
-        """Process a batch of data (called by Spark streaming)"""
-        processor = ImageProcessor()
-        rows = batch_df.select("data").collect()
+    def create_batch_processor(known_names, known_encodings, face_system):
+        def process_batch(batch_df, batch_id):
+            """Process a batch of data (called by Spark streaming)"""
+            rows = batch_df.select("data").collect()
 
-        # Check if we have faces to compare against
-        db = FaceRecognitionDB()
-        conn = db.get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM face_encodings")
-        count = cursor.fetchone()[0]
-        cursor.close()
-        conn.close()
+            for row in rows:
+                ImageProcessor.process_row(face_system, row, known_names, known_encodings)
 
-        if count == 0:
-            print("No face encodings found in database. Please add faces first.")
-            return
-
-        known_names, known_encodings = db.get_all_face_encodings()
-
-        for row in rows:
-            processor.process_row(row, known_names, known_encodings)
+        return process_batch

@@ -20,7 +20,7 @@ class KafkaStreamConsumer:
                 .format('kafka') \
                 .option('kafka.bootstrap.servers', self.bootstrap_servers) \
                 .option('subscribe', self.topic) \
-                .option('startingOffsets', 'earliest') \
+                .option('startingOffsets', 'latest') \
                 .load()
             logging.info("Kafka dataframe created successfully")
         except Exception as e:
