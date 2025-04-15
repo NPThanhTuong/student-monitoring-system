@@ -333,3 +333,133 @@ class FaceRecognitionSystem:
                 print(f"{name}: detected {count} times")
         else:
             print("No persons were recognized")
+
+    def recognize_from_spark_streaming(self, frame, known_names, known_encodings):
+        """Real-time face recognition from Spark streaming using vector similarity"""
+
+        # For performance, only process every other frame
+        process_this_frame = True
+
+        # For tracking recognized people
+        recognized_names = set()
+        recognition_counts = {}  # Track how many times each person is recognized
+
+        # Process only every other frame for better performance
+        if process_this_frame:
+            # Resize frame for faster processing
+            small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
+
+            # Convert from BGR to RGB
+            rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
+
+            # Find all faces in the current frame
+            face_locations = face_recognition.face_locations(rgb_small_frame,
+                                                             model=self.face_detection_model)
+            face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+
+            face_names = []
+            face_confidences = []
+
+            for face_encoding in face_encodings:
+                try:
+                    # Try to use vector similarity search (faster and more accurate)
+                    similar_faces = self.db.find_similar_faces(face_encoding,
+                                                               self.recognition_tolerance)
+
+                    if similar_faces:
+                        # Get the most similar face
+                        name, confidence = similar_faces[0]
+
+                        # Track recognition
+                        recognized_names.add(name)
+                        recognition_counts[name] = recognition_counts.get(name, 0) + 1
+                    else:
+                        name = "Unknown"
+                        confidence = 0
+
+                    face_names.append(name)
+                    face_confidences.append(confidence)
+
+                except Exception as e:
+                    print(f"Error with vector search, falling back to traditional method: {e}")
+
+                    # Fallback to traditional method
+                    matches = face_recognition.compare_faces(known_encodings, face_encoding,
+                                                             tolerance=self.recognition_tolerance)
+                    name = "Unknown"
+                    confidence = 0
+
+                    if True in matches:
+                        # Find best match
+                        face_distances = face_recognition.face_distance(known_encodings,
+                                                                        face_encoding)
+                        best_match_index = np.argmin(face_distances)
+
+                        if matches[best_match_index]:
+                            name = known_names[best_match_index]
+                            confidence = 1 - face_distances[best_match_index]
+
+                            # Track recognition
+                            recognized_names.add(name)
+                            recognition_counts[name] = recognition_counts.get(name, 0) + 1
+
+                    face_names.append(name)
+                    face_confidences.append(confidence)
+
+        process_this_frame = not process_this_frame
+
+        # Display results
+        for (top, right, bottom, left), name, confidence in zip(face_locations, face_names,
+                                                                face_confidences):
+            # Scale back up face locations
+            top *= 4
+            right *= 4
+            bottom *= 4
+            left *= 4
+
+            # Set color based on confidence (green for known, red for unknown)
+            if name != "Unknown":
+                # Gradient from yellow to green based on confidence
+                green = int(255 * min(confidence * 1.5, 1.0))
+                red = int(255 * max(1 - (confidence - 0.5) * 2, 0) if confidence > 0.5 else 255)
+                color = (0, green, red)  # OpenCV uses BGR
+
+                # Format confidence as percentage
+                confidence_text = f"{confidence * 100:.1f}%"
+            else:
+                color = (0, 0, 255)  # Red for unknown
+                confidence_text = ""
+
+            # Draw box around face
+            cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
+
+            # Draw label with name
+            cv2.rectangle(frame, (left, bottom - 35), (right, bottom), color, cv2.FILLED)
+            font = cv2.FONT_HERSHEY_DUPLEX
+            cv2.putText(frame, name, (left + 6, bottom - 6), font, 0.5, (255, 255, 255), 1)
+
+            # Draw confidence if known
+            if name != "Unknown":
+                cv2.putText(frame, confidence_text, (left + 6, top - 6), font, 0.5, color, 1)
+
+        # Add info text
+        cv2.putText(frame, "Press 'q' to quit", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+        # Display the frame
+        cv2.imshow('Face Recognition', frame)
+        cv2.waitKey(1)
+        # Check for quit command
+        # if cv2.waitKey(1) & 0xFF == ord('q'):
+        #     # cv2.destroyAllWindows()
+        #     return
+
+        # Print summary
+        # if recognized_names:
+        #     print("\nRecognized persons:")
+        #     print("-----------------")
+        #     for name in recognized_names:
+        #         count = recognition_counts.get(name, 0)
+        #         print(f"{name}: detected {count} times")
+        # else:
+        #     print("No persons were recognized")
