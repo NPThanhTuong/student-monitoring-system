@@ -10,6 +10,7 @@ from facial_recognition_services.FaceRecognitionDB import FaceRecognitionDB
 
 class FaceRecognitionSystem:
     def __init__(self, db_config=None):
+        self.last_results = None
         self.db = FaceRecognitionDB(db_config)
         # Recognition parameters
         self.face_detection_model = "hog"  # options: "hog" (faster) or "cnn" (more accurate)
@@ -336,86 +337,117 @@ class FaceRecognitionSystem:
 
     def recognize_from_spark_streaming(self, frame, known_names, known_encodings):
         """Real-time face recognition from Spark streaming using vector similarity"""
+        # Process face recognition
+        recognition_results, self.last_results = (
+            self._process_face_recognition(frame, known_names, known_encodings)
+        )
 
-        # For performance, only process every other frame
-        process_this_frame = True
+        # Display the results
+        self._display_recognition_results(frame, recognition_results)
+
+        # Display the frame
+        cv2.imshow('Face Recognition', frame)
+        cv2.waitKey(1)
+
+    def _process_face_recognition(self, frame, known_names, known_encodings):
+        """Process face recognition and return detected faces with their information"""
+        # Initialize class variables if not already set
+        if not hasattr(self, '_process_this_frame'):
+            self._process_this_frame = True
+        if not hasattr(self, 'last_results'):
+            self.last_results = []
 
         # For tracking recognized people
         recognized_names = set()
-        recognition_counts = {}  # Track how many times each person is recognized
+        recognition_counts = {}
 
-        # Process only every other frame for better performance
-        if process_this_frame:
-            # Resize frame for faster processing
-            small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
+        # Use previous results when skipping frames to prevent flickering
+        if not self._process_this_frame:
+            self._process_this_frame = True
+            return self.last_results, self.last_results
 
-            # Convert from BGR to RGB
-            rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
+        # Process this frame
+        results = []
 
-            # Find all faces in the current frame
-            face_locations = face_recognition.face_locations(rgb_small_frame,
-                                                             model=self.face_detection_model)
-            face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+        # Resize frame for faster processing
+        small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
 
-            face_names = []
-            face_confidences = []
+        # Convert from BGR to RGB
+        rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
-            for face_encoding in face_encodings:
-                try:
-                    # Try to use vector similarity search (faster and more accurate)
-                    similar_faces = self.db.find_similar_faces(face_encoding,
-                                                               self.recognition_tolerance)
+        # Find all faces in the current frame
+        face_locations = face_recognition.face_locations(rgb_small_frame,
+                                                         model=self.face_detection_model)
+        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
 
-                    if similar_faces:
-                        # Get the most similar face
-                        name, confidence = similar_faces[0]
+        for i, face_encoding in enumerate(face_encodings):
+            name, confidence = self._identify_face(face_encoding, known_names, known_encodings)
 
-                        # Track recognition
-                        recognized_names.add(name)
-                        recognition_counts[name] = recognition_counts.get(name, 0) + 1
-                    else:
-                        name = "Unknown"
-                        confidence = 0
+            # Track recognition
+            if name != "Unknown":
+                recognized_names.add(name)
+                recognition_counts[name] = recognition_counts.get(name, 0) + 1
 
-                    face_names.append(name)
-                    face_confidences.append(confidence)
-
-                except Exception as e:
-                    print(f"Error with vector search, falling back to traditional method: {e}")
-
-                    # Fallback to traditional method
-                    matches = face_recognition.compare_faces(known_encodings, face_encoding,
-                                                             tolerance=self.recognition_tolerance)
-                    name = "Unknown"
-                    confidence = 0
-
-                    if True in matches:
-                        # Find best match
-                        face_distances = face_recognition.face_distance(known_encodings,
-                                                                        face_encoding)
-                        best_match_index = np.argmin(face_distances)
-
-                        if matches[best_match_index]:
-                            name = known_names[best_match_index]
-                            confidence = 1 - face_distances[best_match_index]
-
-                            # Track recognition
-                            recognized_names.add(name)
-                            recognition_counts[name] = recognition_counts.get(name, 0) + 1
-
-                    face_names.append(name)
-                    face_confidences.append(confidence)
-
-        process_this_frame = not process_this_frame
-
-        # Display results
-        for (top, right, bottom, left), name, confidence in zip(face_locations, face_names,
-                                                                face_confidences):
-            # Scale back up face locations
+            # Scale back up face location
+            top, right, bottom, left = face_locations[i]
             top *= 4
             right *= 4
             bottom *= 4
             left *= 4
+
+            # Add to results
+            results.append({
+                'location': (top, right, bottom, left),
+                'name': name,
+                'confidence': confidence
+            })
+
+        # Toggle the processing flag for next frame
+        self._process_this_frame = False
+
+        # Return current results and save them for next skipped frame
+        return results, results
+
+    def _identify_face(self, face_encoding, known_names, known_encodings):
+        """Identify a face using vector similarity or traditional method as fallback"""
+        try:
+            # Try to use vector similarity search (faster and more accurate)
+            similar_faces = self.db.find_similar_faces(face_encoding,
+                                                       self.recognition_tolerance)
+
+            if similar_faces:
+                # Get the most similar face
+                name, confidence = similar_faces[0]
+            else:
+                name = "Unknown"
+                confidence = 0
+
+        except Exception as e:
+            print(f"Error with vector search, falling back to traditional method: {e}")
+
+            # Fallback to traditional method
+            matches = face_recognition.compare_faces(known_encodings, face_encoding,
+                                                     tolerance=self.recognition_tolerance)
+            name = "Unknown"
+            confidence = 0
+
+            if True in matches:
+                # Find best match
+                face_distances = face_recognition.face_distance(known_encodings, face_encoding)
+                best_match_index = np.argmin(face_distances)
+
+                if matches[best_match_index]:
+                    name = known_names[best_match_index]
+                    confidence = 1 - face_distances[best_match_index]
+
+        return name, confidence
+
+    def _display_recognition_results(self, frame, recognition_results):
+        """Display recognition results on the frame"""
+        for result in recognition_results:
+            top, right, bottom, left = result['location']
+            name = result['name']
+            confidence = result['confidence']
 
             # Set color based on confidence (green for known, red for unknown)
             if name != "Unknown":
@@ -445,21 +477,3 @@ class FaceRecognitionSystem:
         # Add info text
         cv2.putText(frame, "Press 'q' to quit", (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-
-        # Display the frame
-        cv2.imshow('Face Recognition', frame)
-        cv2.waitKey(1)
-        # Check for quit command
-        # if cv2.waitKey(1) & 0xFF == ord('q'):
-        #     # cv2.destroyAllWindows()
-        #     return
-
-        # Print summary
-        # if recognized_names:
-        #     print("\nRecognized persons:")
-        #     print("-----------------")
-        #     for name in recognized_names:
-        #         count = recognition_counts.get(name, 0)
-        #         print(f"{name}: detected {count} times")
-        # else:
-        #     print("No persons were recognized")

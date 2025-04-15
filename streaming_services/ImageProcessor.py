@@ -2,12 +2,7 @@ import base64
 import logging
 
 import cv2
-import face_recognition
 import numpy as np
-
-from facial_recognition_services.FaceRecognitionDB import FaceRecognitionDB
-from facial_recognition_services.FaceRecognitionSystem import FaceRecognitionSystem
-
 
 class ImageProcessor:
     """Process images from base64 data and perform face recognition"""
