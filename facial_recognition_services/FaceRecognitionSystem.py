@@ -1,16 +1,21 @@
+import json
+import logging
 from datetime import datetime
 import os
 
 import cv2
 import face_recognition
 import numpy as np
+import requests
 
 from facial_recognition_services.FaceRecognitionDB import FaceRecognitionDB
 
 
 class FaceRecognitionSystem:
     def __init__(self, db_config=None):
-        self.last_results = None
+        self.reported_people = set()
+        self.recognition_threshold = 0.6
+        # self.last_results = None
         self.db = FaceRecognitionDB(db_config)
         # Recognition parameters
         self.face_detection_model = "hog"  # options: "hog" (faster) or "cnn" (more accurate)
@@ -337,76 +342,63 @@ class FaceRecognitionSystem:
 
     def recognize_from_spark_streaming(self, frame, known_names, known_encodings):
         """Real-time face recognition from Spark streaming using vector similarity"""
-        # Process face recognition
-        recognition_results, self.last_results = (
-            self._process_face_recognition(frame, known_names, known_encodings)
-        )
+        try:
 
-        # Display the results
-        self._display_recognition_results(frame, recognition_results)
+            # Process face recognition
+            recognition_results = self._process_face_recognition(frame, known_names, known_encodings)
 
-        # Display the frame
-        cv2.imshow('Face Recognition', frame)
-        cv2.waitKey(1)
+            # Send recognized faces to API
+            self._report_recognized_faces(recognition_results)
+
+            # Display the frame (optional - can be removed if no visual feedback needed)
+            cv2.imshow('Face Recognition', frame)
+            cv2.waitKey(1)
+        except Exception as e:
+            print(f"Error occurs while recognize from spark streaming: {e}")
 
     def _process_face_recognition(self, frame, known_names, known_encodings):
         """Process face recognition and return detected faces with their information"""
         # Initialize class variables if not already set
         if not hasattr(self, '_process_this_frame'):
             self._process_this_frame = True
-        if not hasattr(self, 'last_results'):
-            self.last_results = []
 
-        # For tracking recognized people
-        recognized_names = set()
-        recognition_counts = {}
-
-        # Use previous results when skipping frames to prevent flickering
-        if not self._process_this_frame:
-            self._process_this_frame = True
-            return self.last_results, self.last_results
-
-        # Process this frame
+        # Process only every other frame for better performance
         results = []
 
-        # Resize frame for faster processing
-        small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
+        if self._process_this_frame:
+            # Resize frame for faster processing
+            small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
 
-        # Convert from BGR to RGB
-        rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
+            # Convert from BGR to RGB
+            rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
-        # Find all faces in the current frame
-        face_locations = face_recognition.face_locations(rgb_small_frame,
-                                                         model=self.face_detection_model)
-        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+            # Find all faces in the current frame
+            face_locations = face_recognition.face_locations(rgb_small_frame,
+                                                             model=self.face_detection_model)
+            face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
 
-        for i, face_encoding in enumerate(face_encodings):
-            name, confidence = self._identify_face(face_encoding, known_names, known_encodings)
+            for i, face_encoding in enumerate(face_encodings):
+                name, confidence = self._identify_face(face_encoding, known_names, known_encodings)
 
-            # Track recognition
-            if name != "Unknown":
-                recognized_names.add(name)
-                recognition_counts[name] = recognition_counts.get(name, 0) + 1
+                # Scale back up face location
+                top, right, bottom, left = face_locations[i]
+                top *= 4
+                right *= 4
+                bottom *= 4
+                left *= 4
 
-            # Scale back up face location
-            top, right, bottom, left = face_locations[i]
-            top *= 4
-            right *= 4
-            bottom *= 4
-            left *= 4
+                # Add to results
+                results.append({
+                    'location': (top, right, bottom, left),
+                    'name': name,
+                    'confidence': confidence,
+                    'timestamp': self._get_current_timestamp()
+                })
 
-            # Add to results
-            results.append({
-                'location': (top, right, bottom, left),
-                'name': name,
-                'confidence': confidence
-            })
+        # Toggle the processing flag
+        self._process_this_frame = not self._process_this_frame
 
-        # Toggle the processing flag for next frame
-        self._process_this_frame = False
-
-        # Return current results and save them for next skipped frame
-        return results, results
+        return results
 
     def _identify_face(self, face_encoding, known_names, known_encodings):
         """Identify a face using vector similarity or traditional method as fallback"""
@@ -442,38 +434,58 @@ class FaceRecognitionSystem:
 
         return name, confidence
 
-    def _display_recognition_results(self, frame, recognition_results):
-        """Display recognition results on the frame"""
+    def _get_current_timestamp(self):
+        """Get current timestamp in the desired format"""
+        return datetime.now().isoformat()
+
+    def _report_recognized_faces(self, recognition_results):
+        """Report recognized faces to the API, ensuring each person is only reported once"""
+        # Initialize set to track reported people if not already created
+        if not hasattr(self, 'reported_people'):
+            self.reported_people = set()
+
+        # Set default threshold if not already defined
+        if not hasattr(self, 'recognition_threshold'):
+            self.recognition_threshold = 0.6
+
+        API_ENDPOINT = "http://127.0.0.1:9000/post/observations"
+        API_HEADERS = {'Content-Type': 'application/json'}
+        API_BASIC_AUTH = ('sensor', 'sensor')
+
         for result in recognition_results:
-            top, right, bottom, left = result['location']
-            name = result['name']
-            confidence = result['confidence']
+            name = result.get('name')
+            confidence = result.get('confidence', 0)
 
-            # Set color based on confidence (green for known, red for unknown)
-            if name != "Unknown":
-                # Gradient from yellow to green based on confidence
-                green = int(255 * min(confidence * 1.5, 1.0))
-                red = int(255 * max(1 - (confidence - 0.5) * 2, 0) if confidence > 0.5 else 255)
-                color = (0, green, red)  # OpenCV uses BGR
+            # Only report known faces that haven't been reported yet
+            if (name and name != "Unknown" and
+                    name not in self.reported_people and
+                    confidence >= self.recognition_threshold):
+                try:
+                    # Prepare data for API
+                    recognition_data = {
+                        "Datastream": {
+                            "id": 7
+                        },
+                        "result": [
+                            {
+                                "name": name,
+                                "confidence": confidence,
+                                "timestamp": result.get('timestamp', datetime.now().isoformat())
+                            }
+                        ]
+                    }
 
-                # Format confidence as percentage
-                confidence_text = f"{confidence * 100:.1f}%"
-            else:
-                color = (0, 0, 255)  # Red for unknown
-                confidence_text = ""
+                    # Send POST request to API
+                    response = requests.post(API_ENDPOINT, headers=API_HEADERS, json=recognition_data, auth=API_BASIC_AUTH)
+                    response.raise_for_status()
 
-            # Draw box around face
-            cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
-
-            # Draw label with name
-            cv2.rectangle(frame, (left, bottom - 35), (right, bottom), color, cv2.FILLED)
-            font = cv2.FONT_HERSHEY_DUPLEX
-            cv2.putText(frame, name, (left + 6, bottom - 6), font, 0.5, (255, 255, 255), 1)
-
-            # Draw confidence if known
-            if name != "Unknown":
-                cv2.putText(frame, confidence_text, (left + 6, top - 6), font, 0.5, color, 1)
-
-        # Add info text
-        cv2.putText(frame, "Press 'q' to quit", (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                    # Check if request was successful
+                    print(f"Successfully reported recognition of {name}")
+                    # Add to set of reported people to avoid duplicates
+                    self.reported_people.add(name)
+                except requests.exceptions.RequestException as e:
+                    print(f"API request failed: {e}")
+                except json.JSONDecodeError as e:
+                    print(f"Error decoding JSON response: {e}")
+                except Exception as e:
+                    print(f"Error sending recognition data to API: {e}")
