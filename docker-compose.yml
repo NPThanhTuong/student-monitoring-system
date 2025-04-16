@@ -129,9 +129,59 @@ services:
     networks:
       - appnet
 
+  sensorthings-server:
+    # build:
+    #   context: .
+    #   dockerfile: ./sensorthings-v2.1/Dockerfile
+    image: thanhtuong/sensorthings:v2.1
+    container_name: sensorthings-v2_1
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      # - ./sensorthings-v2.1:/var/www/html
+      - ./sensorthings-v2.1/storage:/var/www/html/storage
+      - ./sensorthings-v2.1/bootstrap/cache:/var/www/html/bootstrap/cache
+    ports:
+      - "9000:80"
+    networks:
+      - appnet
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: dws
+      MYSQL_USER: sensorthings
+      MYSQL_PASSWORD: sensorthings
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - appnet
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: sensorthings
+      PMA_PASSWORD: sensorthings
+    ports:
+      - "8080:80"
+    networks:
+      - appnet
+    depends_on:
+      - mysql
+
 volumes:
   pgdata:
     name: pgdata
+  mysql_data:
+    name: mysql_data
 
 networks:
   appnet:
