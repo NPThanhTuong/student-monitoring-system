@@ -142,7 +142,7 @@ services:
       - ./sensorthings-v2.1/storage:/var/www/html/storage
       - ./sensorthings-v2.1/bootstrap/cache:/var/www/html/bootstrap/cache
     ports:
-      - "9000:80"
+      - "9191:80"
     networks:
       - appnet
 
@@ -177,11 +177,47 @@ services:
     depends_on:
       - mysql
 
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    restart: always
+    ports:
+      - 9870:9870
+      - 9000:9000
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=hadoop-cluster
+    env_file:
+      - ./hadoop.env
+    networks:
+      - appnet
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    restart: always
+    ports:
+      - 9864:9864
+    depends_on:
+      - namenode
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    env_file:
+      - ./hadoop.env
+    networks:
+      - appnet
+
 volumes:
   pgdata:
     name: pgdata
   mysql_data:
     name: mysql_data
+  hadoop_namenode:
+    name: hadoop_namenode
+  hadoop_datanode:
+    name: hadoop_datanode
 
 networks:
   appnet:

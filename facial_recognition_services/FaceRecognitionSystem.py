@@ -447,7 +447,7 @@ class FaceRecognitionSystem:
         if not hasattr(self, 'recognition_threshold'):
             self.recognition_threshold = 0.6
 
-        API_ENDPOINT = "http://127.0.0.1:9000/post/observations"
+        API_ENDPOINT = "http://127.0.0.1:9191/post/observations"
         DATASTREAM_ID = 2
         API_HEADERS = {'Content-Type': 'application/json'}
         API_BASIC_AUTH = ('sensor', 'sensor')
