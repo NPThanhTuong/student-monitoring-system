@@ -8,6 +8,7 @@ import numpy as np
 import requests
 
 from facial_recognition_services.FaceRecognitionDB import FaceRecognitionDB
+from hdfs_services.HdfsHadoopSystem import HdfsHadoopSystem
 
 
 class FaceRecognitionSystem:
@@ -16,6 +17,7 @@ class FaceRecognitionSystem:
         self.recognition_threshold = 0.6
         # self.last_results = None
         self.db = FaceRecognitionDB(db_config)
+        self.hdfs = HdfsHadoopSystem()
         # Recognition parameters
         self.face_detection_model = "hog"  # options: "hog" (faster) or "cnn" (more accurate)
         self.recognition_tolerance = 0.6  # lower = more strict
@@ -391,7 +393,8 @@ class FaceRecognitionSystem:
                     'location': (top, right, bottom, left),
                     'name': name,
                     'confidence': confidence,
-                    'timestamp': self._get_current_timestamp()
+                    'timestamp': self._get_current_timestamp(),
+                    'frame': frame
                 })
 
         # Toggle the processing flag
@@ -455,12 +458,15 @@ class FaceRecognitionSystem:
         for result in recognition_results:
             name = result.get('name')
             confidence = result.get('confidence', 0)
+            frame = result.get("frame")
 
             # Only report known faces that haven't been reported yet
             if (name and name != "Unknown" and
                     name not in self.reported_people and
                     confidence >= self.recognition_threshold):
                 try:
+                    filename = self.hdfs.create_timestamp_file_path(name)
+
                     # Prepare data for API
                     recognition_data = {
                         "Datastream": {
@@ -470,7 +476,8 @@ class FaceRecognitionSystem:
                             {
                                 "name": name,
                                 "confidence": confidence,
-                                "timestamp": result.get('timestamp', datetime.now().isoformat())
+                                "timestamp": result.get('timestamp', datetime.now().isoformat()),
+                                "image": filename
                             }
                         ]
                     }
@@ -481,6 +488,10 @@ class FaceRecognitionSystem:
 
                     # Check if request was successful
                     print(f"Successfully reported recognition of {name}")
+
+                    # Save frame to HDFS
+                    self.hdfs.save_to_hdfs(frame, filename)
+
                     # Add to set of reported people to avoid duplicates
                     self.reported_people.add(name)
                 except requests.exceptions.RequestException as e:
