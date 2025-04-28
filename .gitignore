@@ -48,4 +48,6 @@ htmlcov/
 coverage.xml
 
 # Data Files (Optional - if large and not essential)
+sensorthings-v2.1/
+face_images/
 # data/large_dataset.csv

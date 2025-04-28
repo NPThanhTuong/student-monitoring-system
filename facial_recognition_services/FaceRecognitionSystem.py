@@ -448,6 +448,7 @@ class FaceRecognitionSystem:
             self.recognition_threshold = 0.6
 
         API_ENDPOINT = "http://127.0.0.1:9000/post/observations"
+        DATASTREAM_ID = 2
         API_HEADERS = {'Content-Type': 'application/json'}
         API_BASIC_AUTH = ('sensor', 'sensor')
 
@@ -463,7 +464,7 @@ class FaceRecognitionSystem:
                     # Prepare data for API
                     recognition_data = {
                         "Datastream": {
-                            "id": 7
+                            "id": DATASTREAM_ID
                         },
                         "result": [
                             {
