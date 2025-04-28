@@ -139,7 +139,9 @@ services:
     working_dir: /var/www/html
     volumes:
       # - ./sensorthings-v2.1:/var/www/html
-      - ./sensorthings-v2.1/storage:/var/www/html/storage
+      - ./sensorthings-v2.1/storage/framework/views:/var/www/html/storage/framework/views
+      - ./sensorthings-v2.1/storage/framework/cache:/var/www/html/storage/framework/cache
+      - ./sensorthings-v2.1/storage/framework/sessions:/var/www/html/storage/framework/sessions
       - ./sensorthings-v2.1/bootstrap/cache:/var/www/html/bootstrap/cache
     ports:
       - "9191:80"
