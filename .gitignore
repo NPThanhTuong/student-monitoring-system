@@ -35,7 +35,6 @@ temp/
 
 # Local Configuration
 .env
-hadoop.env
 *.ini # Or other local config files
 
 # Build and Distribution

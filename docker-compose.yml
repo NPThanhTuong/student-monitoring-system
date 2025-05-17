@@ -182,44 +182,48 @@ services:
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
     container_name: namenode
-    restart: always
     ports:
       - 9870:9870
       - 9000:9000
     volumes:
+      - ./hadoop-conf/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml:ro
       - hadoop_namenode:/hadoop/dfs/name
     environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
       - CLUSTER_NAME=hadoop-cluster
-    env_file:
-      - ./hadoop.env
     networks:
       - appnet
-  datanode:
+
+  datanode1:
     image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
-    container_name: datanode
-    restart: always
-    ports:
-      - 9864:9864
+    container_name: datanode1
     depends_on:
       - namenode
     volumes:
-      - hadoop_datanode:/hadoop/dfs/data
+      - hadoop_datanode1:/hadoop/dfs/data
     environment:
-      SERVICE_PRECONDITION: "namenode:9870"
-    env_file:
-      - ./hadoop.env
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+    networks:
+      - appnet
+
+  datanode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode2
+    depends_on:
+      - namenode
+    volumes:
+      - hadoop_datanode2:/hadoop/dfs/data
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
     networks:
       - appnet
 
 volumes:
   pgdata:
-    name: pgdata
   mysql_data:
-    name: mysql_data
   hadoop_namenode:
-    name: hadoop_namenode
-  hadoop_datanode:
-    name: hadoop_datanode
+  hadoop_datanode1:
+  hadoop_datanode2:
 
 networks:
   appnet:
