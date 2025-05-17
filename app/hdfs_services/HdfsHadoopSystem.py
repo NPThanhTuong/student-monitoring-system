@@ -1,14 +1,9 @@
 import datetime
 import io
 import logging
-import os
 
 import cv2
-import dotenv
 from pyhdfs import HdfsClient
-
-# Load environment variables from .env file
-dotenv.load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -24,11 +19,12 @@ logger = logging.getLogger(__name__)
 class HdfsHadoopSystem:
     def __init__(self):
         # HDFS Configuration
-        self.hdfs_namenode_host = os.environ.get('HDFS_NAMENODE_HOST', 'localhost')
-        self.hdfs_namenode_port = os.environ.get('HDFS_NAMENODE_PORT', '9870')
+        self.hdfs_namenode_host = 'localhost'
+        self.hdfs_namenode_port = '9870'
+        self.hdfs_namenode_user = 'root'
         logger.info(f"Connecting to HDFS at {self.hdfs_namenode_host}:{self.hdfs_namenode_port}")
         self.hdfs_client = HdfsClient(hosts=f'{self.hdfs_namenode_host}:{self.hdfs_namenode_port}',
-                                      user_name='root',
+                                      user_name=self.hdfs_namenode_user,
                                       randomize_hosts=False)
         # Base directory for recognized faces in HDFS
         self.hdfs_base_dir = '/facial-recognition'

@@ -1,8 +1,8 @@
-from facial_recognition_services.FaceRecognitionDB import FaceRecognitionDB
-from facial_recognition_services.FaceRecognitionSystem import FaceRecognitionSystem
-from streaming_services.ImageProcessor import ImageProcessor
-from streaming_services.KafkaStreamConsumer import KafkaStreamConsumer
-from streaming_services.SparkConnectionManager import SparkConnectionManager
+from app.facial_recognition_services.FaceRecognitionDB import FaceRecognitionDB
+from app.facial_recognition_services.FaceRecognitionSystem import FaceRecognitionSystem
+from app.streaming_services.ImageProcessor import ImageProcessor
+from app.streaming_services.KafkaStreamConsumer import KafkaStreamConsumer
+from app.streaming_services.SparkConnectionManager import SparkConnectionManager
 
 
 class VideoStreamConsumer:

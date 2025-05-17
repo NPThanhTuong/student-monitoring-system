@@ -30,22 +30,16 @@ echo.
 
 echo.
 
-echo kafka_stream_service.py is running...
-if exist kafka_stream_service.py (
-    start "" cmd /k python kafka_stream_service.py
+echo classification server is running
+if exist app/server.py (
+    start "" cmd /k python -m app.server
 ) else (
-    echo File kafka_stream_service.py is not exist!
-)
-
-echo spark_stream_service.py is running...
-if exist spark_stream_service.py (
-    start "" cmd /k python spark_stream_service.py
-) else (
-    echo File spark_stream_service.py is not exist!
+    echo File server.py is not exist!
+    pause
 )
 
 echo Waiting for application setup to be ready...
-timeout /t 20 /nobreak
+timeout /t 5 /nobreak
 
 echo.
 

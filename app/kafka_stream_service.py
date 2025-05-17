@@ -1,6 +1,5 @@
 import logging
-from streaming_services.VideoFrame import VideoStreamer
-
+from app.streaming_services.VideoFrame import VideoStreamer
 
 def stream_to_kafka():
     """Main function to start video streaming"""

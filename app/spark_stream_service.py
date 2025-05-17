@@ -1,6 +1,6 @@
 import logging
 
-from streaming_services.VideoStreamConsumer import VideoStreamConsumer
+from app.streaming_services.VideoStreamConsumer import VideoStreamConsumer
 
 
 def stream_to_spark():

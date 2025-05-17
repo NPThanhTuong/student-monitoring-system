@@ -1,6 +1,6 @@
 import os
 
-from facial_recognition_services.FaceRecognitionSystem import FaceRecognitionSystem
+from app.facial_recognition_services.FaceRecognitionSystem import FaceRecognitionSystem
 
 
 def facialConsole():

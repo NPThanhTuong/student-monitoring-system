@@ -7,8 +7,8 @@ import face_recognition
 import numpy as np
 import requests
 
-from facial_recognition_services.FaceRecognitionDB import FaceRecognitionDB
-from hdfs_services.HdfsHadoopSystem import HdfsHadoopSystem
+from app.facial_recognition_services.FaceRecognitionDB import FaceRecognitionDB
+from app.hdfs_services.HdfsHadoopSystem import HdfsHadoopSystem
 
 
 class FaceRecognitionSystem:
@@ -124,15 +124,15 @@ class FaceRecognitionSystem:
                     # Add face encoding to database
                     encoding_id = self.db.add_face_encoding(person_id, face_encodings[0])
 
-                    # Save face image for reference (optional)
-                    save_dir = "face_images"
-                    if not os.path.exists(save_dir):
-                        os.makedirs(save_dir)
-
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    image_path = os.path.join(save_dir, f"{name}_{timestamp}.jpg")
-                    cv2.imwrite(image_path, frame)
-                    print(f"Face image saved to {image_path}")
+                    # # Save face image for reference (optional)
+                    # save_dir = "face_images"
+                    # if not os.path.exists(save_dir):
+                    #     os.makedirs(save_dir)
+                    #
+                    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    # image_path = os.path.join(save_dir, f"{name}_{timestamp}.jpg")
+                    # cv2.imwrite(image_path, frame)
+                    # print(f"Face image saved to {image_path}")
 
                     cap.release()
                     cv2.destroyAllWindows()

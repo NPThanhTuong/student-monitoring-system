@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<head><title>Upload to HDFS</title></head>
+<body>
+  <h1>Student Monitor system</h1>
+
+  <h2>Kafka + Spark Controller</h2>
+  <p>Trạng thái Kafka: {{ 'Đang chạy' if kafka_running else 'Chưa chạy' }}</p>
+  <p>Trạng thái Spark: {{ 'Đang chạy' if spark_running else 'Chưa chạy' }}</p>
+  <form action="/start" method="post">
+    <button type="submit">🚀 Khởi động hệ thống</button>
+  </form>
+  <form action="/stop" method="post">
+    <button type="submit">🛑 Tắt hệ thống</button>
+  </form>
+</body>
+</html>
